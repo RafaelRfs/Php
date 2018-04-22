@@ -1,8 +1,6 @@
 <?php 
-
 include_once('db.class.php');
 $pdo = new Db();
-
 echo "DATA: ".$pdo->getFileDataLast()."<br>";
 $indiceOR[0] = 'usuarios.nome';
 //$pdo->setIndicesOR($indiceOR);
