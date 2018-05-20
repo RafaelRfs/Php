@@ -1,4 +1,5 @@
 <?php 
+include_once('config.php');
 include_once('db.class.php');
 $pdo = new Db();
 echo "DATA: ".$pdo->getFileDataLast()."<br>";
