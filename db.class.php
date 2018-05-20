@@ -1,15 +1,7 @@
 <?php
-define('USER', 'root');
-define('PASS','');
-define('HOST','localhost');
-define('DBNAME','teste');
-define('TYPEBD','mysql');
-define('FILE_DATE_MODIFIED', 'file_last_execution.pid');
-
 class Db{
 private $conn, $table = 'users', $logfile = 'LogDb.txt', $numbers_indices_search  = array(), 
-$name_indices_search = array(), $search_params = array(), $camps = '', $distinct = false, $indiceOR = array(), $relationship = array();
-
+$name_indices_search = array(), $search_params = array(), $camps = '', $distinct = false, $indiceOR = array(), $relationship = array(),$whereType = array();
 function __construct(){
 		$this->getConn();
 	}
@@ -20,11 +12,16 @@ function getConn(){
 	$this->conn =  new PDO(TYPEBD.':host='.HOST.';dbname='.DBNAME.';charset=utf8', USER,PASS, array(PDO::ATTR_PERSISTENT => true));	
 	$this->conn->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
     $this->conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+	$this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 	}
 	return $this->conn;
 	}catch(Exception $e){	
 	   $this->writeError($e);	
 	}
+}
+
+function closeConn(){
+	$this->conn = null;
 }
 
 public function setTable($table){
@@ -41,13 +38,11 @@ function writeError($e){
 	echo json_encode($data);
 	exit();
 }	
-
 public function writeDataIntoFile(){
 	$op = fopen(FILE_DATE_MODIFIED, 'w');
 	fwrite($op, date('Y-m-d H:i:s'));
 	fclose($op);	
 }
-
 public function getFileDataLast(){
 	$data = "";	
 	if(file_exists(FILE_DATE_MODIFIED)){
@@ -79,12 +74,10 @@ public function addSearchParams($val){
 	$this->search_params[] = $val;
 	}
 public function resetSearchParams(){$this->search_params = array();}
-
 public function setSearchString($strSearch){
 	$strSearch = explode(',', $strSearch);
 	$this->setSearchParams($strSearch);
 	}
-
 public function isIndiceSearch($ind){
 	$verify = false;
 	foreach($this->getNumbersIndicesSearch() as $inds){
@@ -98,26 +91,33 @@ public function setCamps($params){ $this->camps = $params;}
 public function addCamps($value){ if($this->camps <> '') $this->camps = $value; else $this->camps .= $value; }
 public function getCamps(){ return $this->camps; }
 public function resetCamps(){ $this->camps = "";}
-
 public function getSqlCamps(){
 	$val = "*";
 	if(trim($this->camps) <> '') $val = $this->getCamps();
 	if($this->getDistinct()){  $val = " DISTINCT ".$val;   }
 	return $val;
 	}
-	
+
+public function setWhereType($ind, $value){ $this->whereType[$ind] = $value; }
+public function getWhereType($ind){
+	$where = "=";
+	if(isset($this->whereType[$ind]) && trim($this->whereType[$ind]) <> ''){
+		$where = $this->whereType[$ind];
+		}
+	return $where;
+	}
+
+public function resetWhereType(){ $this->whereType = array();}
 public function setDistinct(){ $this->distinct = true; }
 public function getDistinct(){ return $this->distinct;}
 public function resetDistinct(){ $this->setDistinct(false);}
 public function getIndicesOR(){ return $this->indiceOR;}
 public function setIndicesOR($inds = array()){   if(is_array($inds)) $this->indiceOR = $inds; else $this->indiceOR = array();    }
 public function resetIndicesOR(){ $this->setIndicesOR();}
-
 public function setIndicesOrString($value){
 	$strIndiceOr = explode(',',$value);
 	$this->setIndicesOR($strIndiceOr);
 	}
-
 public function verifyIsAndOR($value){
 	$resultado = " AND ";
 	foreach($this->indiceOR as $inds){
@@ -125,16 +125,13 @@ public function verifyIsAndOR($value){
 		}
 return $resultado ;	
 }
-
 public function addRelationship($table_with_alias = "" , $connected_camps, $joinType = " INNER "){
 	$sql_relationship = " ".trim($joinType)." JOIN ".$table_with_alias." ON ".$connected_camps." ";
 	$this->relationship[] = $sql_relationship;
 }
-
 public function getRelationships(){
 	return $this->relationship;
 	}
-
 public function getRelationshipsString(){
 	$string_relationships = "";
 	foreach($this->getRelationships() as $relat){
@@ -151,10 +148,8 @@ private function getStr($data){
 	$dt =  array();
 	$indices = is_array($data)? array_keys($data) : array();
 	$indices_search = $this->getSearchParams();
-	
 	$dt['ind'] = $indices;
 	$count = count($indices);
-	
 	$dt['count'] = $count; 
     $num = 0;
     $dt['str'] = '';
@@ -165,8 +160,8 @@ private function getStr($data){
     foreach($indices as $ind){
 	$dt['str'] .=$ind;
 	$dt['qst'] .='?';
-	$dt['cmb'] .= $ind.'=?';
-	$dt['read'] .= (!$this->verifyIfIsSearch($indices_search, $ind)) ? $ind.'=?' : $ind." LIKE ?";
+	$dt['cmb'] .= $ind.$this->getWhereType($ind).'?';
+	$dt['read'] .= (!$this->verifyIfIsSearch($indices_search, $ind)) ? $ind.$this->getWhereType($ind).'?' : $ind." LIKE ?";
 	
 	if($this->verifyIfIsSearch($indices_search, $ind)){ 
 	$index_pesquisa = $num + 1;
@@ -178,9 +173,7 @@ private function getStr($data){
 	$dt['str'] .=','; 
 	$dt['qst'] .=',';
 	$dt['cmb'] .=',';
-	
 	$valor_next = $indices[$num+1];
-	
 	$dt['read'] .= $this->verifyIsAndOR($valor_next);	
 	}
 	$num++;
@@ -208,9 +201,10 @@ function Reset(){
 	$this->resetDistinct();
 	$this->resetIndicesOR();
 	$this->resetRelationship();
+	$this->resetWhereType();
 	}	
 	
-function prepareSql2($pdo, $dta,$dx){
+function prepareSql2($pdo, $dta,$dx, $reset = 1){
 	$count = is_array($dx)? $dx['count'] : 0;
 	$count2 = count($dta);
 	if($count == $count2){
@@ -220,9 +214,14 @@ function prepareSql2($pdo, $dta,$dx){
 		}
 	$pdo->execute();  
 	}
+	
+	if($reset == 1){
 	$this->Reset();
+	}
 	return $pdo;
-	}	
+	}
+	
+		
 public function verifyIfIsSearch($indices_search, $value){
 	$search = false;
 	if(is_array($indices_search)){
@@ -243,7 +242,6 @@ function getVarTp($indice,  $value, $pdo){
         $search = "%".(string)$value."%";
 		$pdo->bindValue($indice,$search , PDO::PARAM_STR );	
     }else{
-		
 	switch($tp_data){
 		case "integer":
 		$pdo->bindValue($indice, $value, PDO::PARAM_INT );
@@ -260,7 +258,7 @@ function getVarTp($indice,  $value, $pdo){
 		case "":
 		$pdo->bindValue($indice, $value, PDO::PARAM_NULL );
 		break;
-		
+			
 		case "double":
 		$pdo->bindValue($indice, $value, PDO::PARAM_STR );
 		break;
@@ -286,9 +284,8 @@ function Prepare($sql,$arg = '',$arg2 = '',$arg3='',$arg4='',$arg5 = ''){
 		if(trim($arg4) <> '' ){  $dados = $this->getVarTp(4,  $arg4, $dados);    }
 		if(trim($arg5) <> '' ){  $dados = $this->getVarTp(5,  $arg5, $dados);     }
 		$dados->execute();
-		$dados->setFetchMode(PDO::FETCH_ASSOC);
 		$data['count'] = $dados->rowCount();
-		$data['data'] = $dados->fetchAll();
+		$data['data'] = $this->fetchPdo($dados);
 		return $data;
 		}catch(Exception $e){ $this->writeError($e);}
 	}	
@@ -312,55 +309,59 @@ public function Read($where = '', $table = '', $limit = "",$orderby = ""){
 	$sql = (trim($orderby) <> '')? $sql." ORDER BY ".$orderby : $sql; 
 	$sql = (trim($limit) <> '') ? $sql.$limit  :$sql ;	
 	$pdo = $this->getConn()->query($sql);
-	$pdo->setFetchMode(PDO::FETCH_ASSOC);
-	return $pdo->fetchAll();
+	return $this->fetchPdo($pdo);
 	}catch(Exception $e){
 		$this->writeError($e);	
 		}
 	}
+
+public function fetchPdo($pdo){
+  	$dt = array();
+	while($arr = $pdo->fetch()){
+		$dt[] = $arr;
+		}
+	return $dt;
+}
 	
 public function ReadPdo($where = array(), $table = '', $limit = "",$orderby = "", $groupby = ""){
 	try{
+	if(!is_array($where) && trim($where) == ''){
+		$where = array();
+	}		
 	$tab = trim($table) == '' ? $this->table : $table;
 	$sql = "SELECT ".$this->getSqlCamps()." FROM ".$tab." ";
 	$strWher =  is_array($where) && count($where) > 0 ? $this->getStr($where) : '';
 	$str_where = "";
-	
-	if((is_array($where) && strpos($strWher['read'], "WHERE"))){
+	if((is_array($where) && isset($strWher['read']) && strpos($strWher['read'], "WHERE"))){
 		$str_where =  ($strWher['read'] <> '')?  $strWher['read']  : '';
 		}
-	else if(is_array($where) && !(strpos($strWher['read'], "WHERE"))){
+	else if(is_array($where) && isset($strWher['read']) && !(strpos($strWher['read'], "WHERE"))){
 		$str_where = (count($where) > 0) ? " WHERE ".$strWher['read'] : '';
 		}
-		
 	else if(!(is_array($where)) && !(strpos($where, "WHERE")) && trim($where) <> ''){
 		$str_where = (trim($where) <>  '')? " WHERE ".$where : '';
 		}
-		
 	$sql .= $this->getRelationshipsString();	
 	$sql .= $str_where;
-
 	$groupby = trim($groupby) <> '' && !(strpos(strtoupper($groupby), 'GROUP BY')) ? " GROUP BY ".$groupby : $groupby;
 	$orderby = trim($orderby) <> '' && !(strpos(strtoupper($orderby),'ORDER BY'))  ? " ORDER BY ".$orderby : $orderby;
 	$limit   = trim($limit) <> ''   && !(strpos(strtoupper($limit),'LIMIT')) ?  " LIMIT ".$limit : $limit;
 	$sql .= $groupby.$orderby.' ';
 	$sql_all = $sql;
 	$sql .= $limit <> '' ? $limit : '';
-	
 	$pdo = $this->getConn()->prepare($sql);
-	$pdo = $this->prepareSql2($pdo,$where,$strWher);
-	$pdo->setFetchMode(PDO::FETCH_ASSOC);
+	$pdo = $this->prepareSql2($pdo,$where,$strWher, 0);
 	$dat = array();
-	
 	$pdo2 = $this->getConn()->prepare($sql_all);
-	$pdo2 = $this->prepareSql2($pdo,$where,$strWher);
-	$pdo2->setFetchMode(PDO::FETCH_ASSOC);
-	
+	$pdo2 = $this->prepareSql2($pdo,$where,$strWher,1);
+	$dat['sql'] = $sql;
+	$data['where'] = $where;
 	$dat['count'] = $pdo->rowCount();
 	$dat['count_all'] = $pdo2->rowCount();
-	$dat['data'] = $pdo->fetchAll();
+	$dat['data'] = $this->fetchPdo($pdo);
+	unset($pdo);
+	unset($pdo2);
     return $dat;
-	
 	}catch(Exception $e){
 		$this->writeError($e);	
 		}
@@ -387,6 +388,16 @@ public function Delete($id, $camp='id', $table = ''){
 	$this->writeError($e);	
 		}
 	}
+	
+public function DeleteData($where,$table = ''){
+	try{
+	$tab = trim($table) == '' ? $this->table : $table;
+	$sql = "DELETE FROM ".$tab." WHERE ".$where;
+	$pdo = $this->getConn()->query($sql);
+	}catch(Exception $e){
+	$this->writeError($e);	
+		}
+	}	
 	
 	
 function create_guid()
@@ -437,5 +448,4 @@ public function microtime_diff($a, $b)
 }
 	
 }
-
 ?>
