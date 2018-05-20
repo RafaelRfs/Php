@@ -17,6 +17,10 @@ $pdo->addRelationship(" posts as pst3 " , 'usuarios.id=pst3.autor', $joinType = 
 
 $dx['usuarios.id'] = 1;
 $dx['usuarios.nome'] ="Ra";
+
+$pdo->setWhereType('usuarios.id', '=');
+
+
 $data = $pdo->ReadPdo($dx, ' users as usuarios', ' 0,1 ', ' usuarios.nome DESC ', 'usuarios.id ');
 
 echo json_encode($data);
