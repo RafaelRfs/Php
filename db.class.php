@@ -1,7 +1,7 @@
 <?php
 class Db{
 private $conn, $table = 'users', $logfile = 'LogDb.txt', $numbers_indices_search  = array(), 
-$name_indices_search = array(), $search_params = array(), $camps = '', $distinct = false, $indiceOR = array(), $relationship = array(),$whereType = array();
+$name_indices_search = array(), $search_params = array(), $camps = '', $distinct = false, $indiceOR = array(), $relationship = array(),$whereType = array(), $setCustomWhere  = "";
 function __construct(){
 		$this->getConn();
 	}
@@ -9,7 +9,7 @@ function __construct(){
 function getConn(){
 	try{	
 	if(is_null($this->conn)){
-	$this->conn =  new PDO(TYPEBD.':host='.HOST.';dbname='.DBNAME.';charset=utf8', USER,PASS, array(PDO::ATTR_PERSISTENT => true));	
+	$this->conn =  new PDO(TYPEBD.':host='.HOST.';dbname='.DBNAME.';charset=utf8', USER,PASS, array(PDO::ATTR_PERSISTENT => true, PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES UTF8'));	
 	$this->conn->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
     $this->conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 	$this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
@@ -19,11 +19,9 @@ function getConn(){
 	   $this->writeError($e);	
 	}
 }
-
 function closeConn(){
 	$this->conn = null;
 }
-
 public function setTable($table){
 	$this->table = $table;
 	}
@@ -86,7 +84,17 @@ public function isIndiceSearch($ind){
 		}
 	return $verify;
 	}
-	
+
+public function setCustomWhere($wher){ $this->setCustomWhere = $wher; }
+public function getCustomWhere(){ 
+$wher = "";
+if(trim($this->setCustomWhere) <> ''){
+	$wher = (strpos(strtoupper($this->setCustomWhere), "WHERE") )? $this->setCustomWhere : ' WHERE '.$this->setCustomWhere;
+	}
+return $wher ;
+}
+public function resetCustomWhere(){ $this->setCustomWhere = "";}
+
 public function setCamps($params){ $this->camps = $params;}
 public function addCamps($value){ if($this->camps <> '') $this->camps = $value; else $this->camps .= $value; }
 public function getCamps(){ return $this->camps; }
@@ -97,7 +105,6 @@ public function getSqlCamps(){
 	if($this->getDistinct()){  $val = " DISTINCT ".$val;   }
 	return $val;
 	}
-
 public function setWhereType($ind, $value){ $this->whereType[$ind] = $value; }
 public function getWhereType($ind){
 	$where = "=";
@@ -106,11 +113,10 @@ public function getWhereType($ind){
 		}
 	return $where;
 	}
-
 public function resetWhereType(){ $this->whereType = array();}
 public function setDistinct(){ $this->distinct = true; }
 public function getDistinct(){ return $this->distinct;}
-public function resetDistinct(){ $this->setDistinct(false);}
+public function resetDistinct(){ $this->distinct = false;}
 public function getIndicesOR(){ return $this->indiceOR;}
 public function setIndicesOR($inds = array()){   if(is_array($inds)) $this->indiceOR = $inds; else $this->indiceOR = array();    }
 public function resetIndicesOR(){ $this->setIndicesOR();}
@@ -202,6 +208,7 @@ function Reset(){
 	$this->resetIndicesOR();
 	$this->resetRelationship();
 	$this->resetWhereType();
+	$this->resetCustomWhere();
 	}	
 	
 function prepareSql2($pdo, $dta,$dx, $reset = 1){
@@ -314,7 +321,6 @@ public function Read($where = '', $table = '', $limit = "",$orderby = ""){
 		$this->writeError($e);	
 		}
 	}
-
 public function fetchPdo($pdo){
   	$dt = array();
 	while($arr = $pdo->fetch()){
@@ -342,7 +348,7 @@ public function ReadPdo($where = array(), $table = '', $limit = "",$orderby = ""
 		$str_where = (trim($where) <>  '')? " WHERE ".$where : '';
 		}
 	$sql .= $this->getRelationshipsString();	
-	$sql .= $str_where;
+	$sql .= ($this->getCustomWhere() == '')? $str_where : $this->getCustomWhere();
 	$groupby = trim($groupby) <> '' && !(strpos(strtoupper($groupby), 'GROUP BY')) ? " GROUP BY ".$groupby : $groupby;
 	$orderby = trim($orderby) <> '' && !(strpos(strtoupper($orderby),'ORDER BY'))  ? " ORDER BY ".$orderby : $orderby;
 	$limit   = trim($limit) <> ''   && !(strpos(strtoupper($limit),'LIMIT')) ?  " LIMIT ".$limit : $limit;
