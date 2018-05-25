@@ -21,6 +21,7 @@ $dx['usuarios.nome'] ="Ra";
 
 $pdo->setWhereType('usuarios.id', '=');
 
+$pdo->setCustomWhere('id in (1)'); //WHERE CUSTOMIZADO
 
 $data = $pdo->ReadPdo($dx, ' users as usuarios', ' 0,1 ', ' usuarios.nome DESC ', 'usuarios.id ');
 
