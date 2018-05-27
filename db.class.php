@@ -84,7 +84,6 @@ public function isIndiceSearch($ind){
 		}
 	return $verify;
 	}
-
 public function setCustomWhere($wher){ $this->setCustomWhere = $wher; }
 public function getCustomWhere(){ 
 $wher = "";
@@ -94,7 +93,6 @@ if(trim($this->setCustomWhere) <> ''){
 return $wher ;
 }
 public function resetCustomWhere(){ $this->setCustomWhere = "";}
-
 public function setCamps($params){ $this->camps = $params;}
 public function addCamps($value){ if($this->camps <> '') $this->camps = $value; else $this->camps .= $value; }
 public function getCamps(){ return $this->camps; }
@@ -372,12 +370,44 @@ public function ReadPdo($where = array(), $table = '', $limit = "",$orderby = ""
 		$this->writeError($e);	
 		}
 	}		
+
+
+
+public function getStringWhere($where = array(), $and = "AND", $search = 0){
+	$wher = '';
+	$count = count($where);
+	$buscar = ' LIKE :buscar ';
+		$num = 0;
+		if($count > 0){
+			$wher = " WHERE ";
+			$indices  = ($search == 0)? array_keys($where) : $where;
+			foreach($indices as $ind){
+				$aux_count = $count -1;
+				if($search == 0){
+				$wher .=$ind.'="'.$where[$ind].'"';
+				}else{
+				$wher .='`'.$ind.'`'.$buscar;
+					}
+				
+				if(($num) <> $aux_count ){
+					$wher .=' '.$and.' ';
+					}
+				else{
+					$wher .='';
+					}	
+				++$num;
+				}//Fecha o Foreach			
+			}
+	return $wher;
+	}
+	//Retorna o sql WHERE
 	
 public function Update($id,$camp = 'id',$data,$table){
 	try{
 	$tab = trim($table) == '' ? $this->table : $table;
 	$dt =  $this->getStr($data);
 	$sql = "UPDATE ".$tab." SET ".$dt['cmb']." WHERE ".$camp."='".$id."'";
+
 	$pdo = $this->getConn()->prepare($sql);
 	$this->prepareSql($pdo,$data,$dt);
 	}catch(Exception $e){
